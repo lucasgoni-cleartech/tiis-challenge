@@ -16,10 +16,9 @@ RUN poetry install --no-interaction --no-ansi --no-root
 
 COPY . .
 
-RUN poetry install --no-interaction --no-ansi
-
-# keep a copy of the CSV in image
 COPY resources/departments.csv /app/resources/departments.csv
+
+RUN poetry install --no-interaction --no-ansi
 
 USER appuser
 
