@@ -1,0 +1,136 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: tiis-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - tiis-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  data-init:
+    image: python:3.12-slim
+    container_name: tiis-data-init
+    command: >
+      bash -lc "
+        mkdir -p /data/state /data/raw_users /data/processed_users /data/dlq /data/db &&
+        chown -R 1000:1000 /data
+      "
+    volumes:
+      - app_data:/data
+    networks:
+      - tiis-network
+    restart: "no"
+
+  backend-extractor:
+    build:
+      context: ../../
+      dockerfile: infra/compose/Dockerfile.extractor
+    container_name: tiis-extractor
+    env_file:
+      - .env
+    environment:
+      - STATE_DIR=/data/state
+      - RAW_DIR=/data/raw_users
+      - PROCESSED_DIR=/data/processed_users
+      - DLQ_DIR=/data/dlq
+      - DATA_DIR=/data
+    volumes:
+      - app_data:/data
+    depends_on:
+      - redis
+      - data-init
+    networks:
+      - tiis-network
+    restart: unless-stopped
+    init: true
+
+  backend-transformer:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.transformer
+    container_name: tiis-transformer
+    env_file:
+      - .env
+    environment:
+      - STATE_DIR=/data/state
+      - RAW_DIR=/data/raw_users
+      - PROCESSED_DIR=/data/processed_users
+      - DLQ_DIR=/data/dlq
+      - DATA_DIR=/data
+      - DEPARTMENTS_CSV=/data/departments.csv
+    volumes:
+      - app_data:/data
+    depends_on:
+      - redis
+      - data-init
+    networks:
+      - tiis-network
+    restart: unless-stopped
+    init: true
+
+  backend-saver:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.saver
+    container_name: tiis-saver
+    env_file:
+      - .env
+    volumes:
+      - app_data:/data
+    secrets:
+      - sftp_key
+    depends_on:
+      - redis
+      - sftp-server
+      - data-init
+    networks:
+      - tiis-network
+    restart: unless-stopped
+    init: true
+
+  sftp-server:
+    image: atmoz/sftp:alpine
+    container_name: tiis-sftp
+    ports:
+      - "2222:22"
+    volumes:
+      - sftp_data:/home/tiis_user/uploads
+      - ../secrets/sftp/id_rsa.pub:/home/tiis_user/.ssh/keys/id_rsa.pub:ro
+    environment:
+      - SFTP_USERS=tiis_user::1001:100:uploads
+    command: >
+      sh -c "
+        /entrypoint &
+        ENTRYPOINT_PID=$$! &&
+        sleep 5 &&
+        chown -R tiis_user:users /home/tiis_user/uploads &&
+        chmod -R 755 /home/tiis_user/uploads &&
+        wait $$ENTRYPOINT_PID
+      "
+    networks:
+      - tiis-network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+  app_data:
+    driver: local
+  sftp_data:
+    driver: local
+
+networks:
+  tiis-network:
+    driver: bridge
+
+secrets:
+  sftp_key:
+    file: ../secrets/sftp/id_rsa

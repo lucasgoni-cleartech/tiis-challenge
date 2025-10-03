@@ -1,0 +1,83 @@
+[tool.poetry]
+name = "tiis-backend"
+version = "0.1.0"
+description = "TIIS Challenge Backend - ETL Pipeline with Redis Pub/Sub, SQLite and SFTP"
+authors = ["TIIS Team <dev@tiis.com>"]
+packages = [
+    { include = "apps" },
+    { include = "services" },
+    { include = "utils" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+requests = "^2.31.0"
+tenacity = "^8.2.3"
+pydantic = "^2.5.0"
+apscheduler = "^3.10.4"
+redis = "^5.0.1"
+paramiko = "^3.4.0"
+fastapi = "^0.108.0"
+uvicorn = {extras = ["standard"], version = "^0.25.0"}
+sqlalchemy = "^2.0.23"
+python-dotenv = "^1.0.0"
+orjson = "^3.9.10"
+pydantic-settings = "^2.5.2"
+email-validator = "^2.0.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.3"
+pytest-cov = "^4.1.0"
+pytest-asyncio = "^0.21.1"
+black = "^23.12.0"
+ruff = "^0.1.8"
+mypy = "^1.7.1"
+types-requests = "^2.31.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--cov=apps",
+    "--cov=services",
+    "--cov=utils",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
